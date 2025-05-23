@@ -125,3 +125,12 @@ export interface StoredPlan {
   createdAt: string;   // ISO date string
   itineraryData: ItineraryData;
 }
+
+// ---- START: New Feedback Data Interface ----
+export interface FeedbackData {
+  rating: number; // 1-5 stars
+  comments?: string;
+  itineraryTitle: string; // To associate feedback with the specific plan
+  timestamp: string; // ISO date string of when feedback was submitted
+}
+// ---- END: New Feedback Data Interface ----

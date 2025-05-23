@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { PlannerForm } from './components/PlannerForm';
@@ -5,34 +6,30 @@ import { ItineraryDisplay } from './components/ItineraryDisplay';
 import { LoadingIcon } from './components/LoadingIcon';
 import { ErrorAlert } from './components/ErrorAlert';
 import { PlanHistoryModal } from './components/PlanHistoryModal';
+import { FeedbackModal } from './components/FeedbackModal'; // New import
 import { generateItinerary } from './services/geminiService';
-import { PlanRequest, ItineraryData, StoredPlan } from './types';
+import { PlanRequest, ItineraryData, StoredPlan, FeedbackData } from './types';
 
 const GLOBAL_HISTORY_KEY = 'vietnamPlannerHistory_global';
+const FEEDBACK_HISTORY_KEY = 'vietnamPlannerFeedback_global'; // For storing feedback
 
 const App: React.FC = () => {
   const [itinerary, setItinerary] = useState<ItineraryData | null>(null);
   const [isLoadingPlan, setIsLoadingPlan] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isGeminiApiKeyMissing, setIsGeminiApiKeyMissing] = useState<boolean>(false);
-  const [isGoogleMapsApiKeyMissing, setIsGoogleMapsApiKeyMissing] = useState<boolean>(false);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false); // New state for feedback modal
+  const [feedbackSubmittedForCurrentItinerary, setFeedbackSubmittedForCurrentItinerary] = useState<boolean>(false); // New state
 
   useEffect(() => {
-    // Kiểm tra Gemini API Key
     if (!process.env.API_KEY) {
       setIsGeminiApiKeyMissing(true);
-      console.error("Gemini API Key không được cấu hình. Vui lòng kiểm tra biến môi trường GEMINI_API_KEY.");
     } else {
       setIsGeminiApiKeyMissing(false);
     }
-    
-    // Kiểm tra Google Maps API Key
-    if (!process.env.GOOGLE_MAPS_API_KEY) {
-      setIsGoogleMapsApiKeyMissing(true);
-      console.error("Google Maps API Key không được cấu hình. Vui lòng kiểm tra biến môi trường GOOGLE_MAPS_API_KEY.");
-    } else {
-      setIsGoogleMapsApiKeyMissing(false);
+    if (document.querySelector('script[src*="maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"]')) {
+        console.warn("Google Maps API Key is using a placeholder. Please replace 'YOUR_GOOGLE_MAPS_API_KEY' in index.html with your actual key.");
     }
   }, []);
 
@@ -42,7 +39,7 @@ const App: React.FC = () => {
       return storedData ? JSON.parse(storedData) : [];
     } catch (e) {
       console.error("Error reading plan history from localStorage:", e);
-      localStorage.removeItem(GLOBAL_HISTORY_KEY); // Clear corrupted data
+      localStorage.removeItem(GLOBAL_HISTORY_KEY);
       return [];
     }
   }, []);
@@ -51,19 +48,18 @@ const App: React.FC = () => {
     const currentPlans = getStoredPlans();
     const newPlan: StoredPlan = {
       id: new Date().toISOString() + "_" + Math.random().toString(36).substring(2, 9),
-      // userId is removed
       name: planData.title || "Kế hoạch không tên",
       createdAt: new Date().toISOString(),
       itineraryData: planData,
     };
-    const updatedPlans = [newPlan, ...currentPlans].slice(0, 20); // Keep up to 20 plans
+    const updatedPlans = [newPlan, ...currentPlans].slice(0, 20);
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
   }, [getStoredPlans]);
 
 
   const handlePlanRequest = useCallback(async (request: PlanRequest) => {
     if (isGeminiApiKeyMissing) {
-      setError('Lỗi Cấu Hình: API Key của Gemini chưa được thiết lập. Vui lòng kiểm tra biến môi trường GEMINI_API_KEY.');
+      setError('Lỗi Cấu Hình: API Key của Gemini chưa được thiết lập. Vui lòng kiểm tra biến môi trường API_KEY.');
       setIsLoadingPlan(false);
       return;
     }
@@ -71,6 +67,7 @@ const App: React.FC = () => {
     setIsLoadingPlan(true);
     setError(null);
     setItinerary(null);
+    setFeedbackSubmittedForCurrentItinerary(false); // Reset feedback status for new plan
 
     try {
       const result: ItineraryData = await generateItinerary(request);
@@ -92,6 +89,7 @@ const App: React.FC = () => {
     setItinerary(plan);
     setError(null);
     setShowHistoryModal(false);
+    setFeedbackSubmittedForCurrentItinerary(false); // Reset feedback status for loaded plan
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -99,54 +97,58 @@ const App: React.FC = () => {
     const currentPlans = getStoredPlans();
     const updatedPlans = currentPlans.filter(plan => plan.id !== planId);
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
-    // If the deleted plan was the currently displayed one, clear it
-    if (itinerary && itinerary.title === currentPlans.find(p => p.id === planId)?.name) { // A bit fragile if title is not unique, but good enough for now
+    if (itinerary) {
         const currentLoadedPlan = currentPlans.find(p => p.id === planId);
-        if (currentLoadedPlan && itinerary === currentLoadedPlan.itineraryData) {
-            setItinerary(null);
+        if (currentLoadedPlan && itinerary.title === currentLoadedPlan.name) {
+             // Check if the itinerary objects are the same instance or deeply equal if necessary.
+             // For simplicity, we assume if titles match, it's the one.
+             // A more robust check might involve comparing more fields or the ID if the itineraryData itself had one.
+             setItinerary(null);
         }
     }
   };
 
-  // Kiểm tra xem Google Maps API đã được tải thành công chưa
   const [isGoogleMapsScriptLoaded, setIsGoogleMapsScriptLoaded] = useState(false);
-  
   useEffect(() => {
-    // Hàm kiểm tra Google Maps API đã tải xong chưa
-    const checkGoogleMapsLoaded = () => {
-      if (window.google && window.google.maps) {
+    const checkGoogleMaps = () => {
+      if ((window as any).google && (window as any).google.maps) {
         setIsGoogleMapsScriptLoaded(true);
-        return true;
+      } else {
+        setTimeout(checkGoogleMaps, 500);
       }
-      return false;
     };
-
-    // Nếu Google Maps API đã tải, đánh dấu là đã sẵn sàng
-    if (checkGoogleMapsLoaded()) {
-      return;
+    if (!document.querySelector('script[src*="maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"]')) {
+        checkGoogleMaps();
+    } else {
+        setIsGoogleMapsScriptLoaded(false); 
     }
-
-    // Nếu chưa tải, thiết lập một interval để kiểm tra
-    const intervalId = setInterval(() => {
-      if (checkGoogleMapsLoaded()) {
-        clearInterval(intervalId);
-      }
-    }, 500);
-
-    // Thiết lập timeout sau 10 giây để tránh kiểm tra vô hạn
-    const timeoutId = setTimeout(() => {
-      clearInterval(intervalId);
-      if (!isGoogleMapsScriptLoaded) {
-        console.warn("Google Maps API không tải được sau 10 giây. Tính năng bản đồ có thể không hoạt động.");
-      }
-    }, 10000);
-
-    // Cleanup function
-    return () => {
-      clearInterval(intervalId);
-      clearTimeout(timeoutId);
-    };
   }, []);
+
+  const handleFeedbackSubmit = useCallback((feedback: Omit<FeedbackData, 'itineraryTitle' | 'timestamp'>) => {
+    if (!itinerary) return;
+
+    const fullFeedback: FeedbackData = {
+      ...feedback,
+      itineraryTitle: itinerary.title,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log("Feedback Received:", fullFeedback);
+    // Store feedback in localStorage (optional, for demonstration)
+    try {
+      const existingFeedback = localStorage.getItem(FEEDBACK_HISTORY_KEY);
+      const feedbackHistory: FeedbackData[] = existingFeedback ? JSON.parse(existingFeedback) : [];
+      feedbackHistory.unshift(fullFeedback); // Add new feedback to the beginning
+      localStorage.setItem(FEEDBACK_HISTORY_KEY, JSON.stringify(feedbackHistory.slice(0, 50))); // Keep last 50 feedbacks
+    } catch (e) {
+      console.error("Error saving feedback to localStorage:", e);
+    }
+    
+    setFeedbackSubmittedForCurrentItinerary(true); // Mark as submitted for the current UI session
+    // The modal itself will handle closing or showing a thank you message.
+    // We might want to close it from here too after a delay, or let FeedbackModal handle its full lifecycle.
+    // For now, FeedbackModal will show its own "thank you" and close button.
+  }, [itinerary]);
 
 
   if (isGeminiApiKeyMissing) {
@@ -159,7 +161,7 @@ const App: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-800 mb-3">Lỗi Cấu Hình API Key (Gemini)</h1>
           <p className="text-slate-600 mb-6">
             Rất tiếc, ứng dụng không thể hoạt động vì API Key của Gemini chưa được cấu hình.
-            Vui lòng thiết lập biến môi trường <code className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-mono text-sm">GEMINI_API_KEY</code>.
+            Vui lòng thiết lập biến môi trường <code className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-mono text-sm">API_KEY</code>.
           </p>
           <p className="text-xs text-slate-500">Nếu bạn là nhà phát triển, hãy kiểm tra tài liệu hướng dẫn.</p>
         </div>
@@ -191,7 +193,12 @@ const App: React.FC = () => {
               </div>
             )}
             {itinerary && !isLoadingPlan && !error && (
-              <ItineraryDisplay itineraryData={itinerary} googleMapsApiAvailable={isGoogleMapsScriptLoaded} />
+              <ItineraryDisplay
+                itineraryData={itinerary}
+                googleMapsApiAvailable={isGoogleMapsScriptLoaded}
+                onOpenFeedback={() => setShowFeedbackModal(true)}
+                feedbackSubmitted={feedbackSubmittedForCurrentItinerary}
+              />
             )}
             {!itinerary && !isLoadingPlan && !error && (
               <div className="mt-10 text-center text-slate-600 p-6 py-10 border-2 border-dashed border-slate-300/80 rounded-lg bg-slate-50/50">
@@ -202,15 +209,6 @@ const App: React.FC = () => {
                 <h3 className="text-xl font-semibold text-slate-700 mb-2">Lên Kế Hoạch Cho Chuyến Đi Mơ Ước Của Bạn!</h3>
                 <p className="mt-2 text-sm max-w-md mx-auto text-slate-500">
                   Hãy cung cấp một vài thông tin, AI của chúng tôi sẽ tạo nên một lịch trình khám phá Việt Nam tuyệt vời và được cá nhân hóa cho riêng bạn.
-                </p>
-              </div>
-            )}
-            
-            {isGoogleMapsApiKeyMissing && (
-              <div className="mt-6 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-sm text-amber-700">
-                  <strong>Lưu ý:</strong> Tính năng bản đồ đang bị vô hiệu hóa do thiếu Google Maps API Key. 
-                  Vui lòng cấu hình biến môi trường <code className="bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-mono text-xs">GOOGLE_MAPS_API_KEY</code>.
                 </p>
               </div>
             )}
@@ -227,6 +225,14 @@ const App: React.FC = () => {
           onLoadPlan={loadPlanFromHistory}
           onDeletePlan={deletePlanFromHistory}
           getStoredPlans={getStoredPlans}
+        />
+      )}
+      {showFeedbackModal && itinerary && ( // Only show if there's an itinerary to give feedback on
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmit={handleFeedbackSubmit}
+          itineraryTitle={itinerary.title}
         />
       )}
     </>

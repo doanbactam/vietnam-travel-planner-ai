@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react'; // Added useState
+import React, { useState } from 'react';
 import { ItineraryData, GeneralNote, FinalThoughtItem, DayPlan } from '../types';
 import { DayCard } from './DayCard';
 import { ItineraryMap } from './ItineraryMap';
@@ -7,6 +7,8 @@ import { ItineraryMap } from './ItineraryMap';
 interface ItineraryDisplayProps {
   itineraryData: ItineraryData;
   googleMapsApiAvailable: boolean;
+  onOpenFeedback: () => void; // Callback to open feedback modal
+  feedbackSubmitted: boolean; // To change button text/state
 }
 
 const TAB_THRESHOLD = 7; // Display as tabs if more than 7 days
@@ -54,8 +56,13 @@ const renderFinalThoughtsSection = (title: string, items?: FinalThoughtItem[], i
 };
 
 
-export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({ itineraryData, googleMapsApiAvailable }) => {
-  const [activeTab, setActiveTab] = useState<number>(0); // For tabbed view
+export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({ 
+  itineraryData, 
+  googleMapsApiAvailable,
+  onOpenFeedback,
+  feedbackSubmitted 
+}) => {
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   if (!itineraryData) return null;
 
@@ -151,6 +158,46 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({ itineraryDat
           </div>
         </div>
       )}
+
+      {/* Feedback Button Section */}
+      <div className="mt-12 pt-8 border-t border-slate-300/80 text-center">
+        <h3 className="text-xl font-semibold text-slate-800 mb-3">
+          Lịch trình này có hữu ích với bạn không?
+        </h3>
+        <p className="text-sm text-slate-600 mb-5 max-w-lg mx-auto">
+          Hãy giúp chúng tôi cải thiện bằng cách để lại đánh giá và ý kiến của bạn.
+          Mọi phản hồi đều quý giá!
+        </p>
+        <button
+          onClick={onOpenFeedback}
+          disabled={feedbackSubmitted}
+          className={`px-6 py-3 text-sm font-medium rounded-lg shadow-md transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${feedbackSubmitted 
+              ? 'bg-green-500 text-white cursor-not-allowed flex items-center justify-center'
+              : 'bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-500 transform hover:scale-105 active:scale-95'
+            }`}
+          aria-label={feedbackSubmitted ? "Cảm ơn bạn đã đánh giá!" : "Để lại đánh giá và phản hồi"}
+        >
+          {feedbackSubmitted ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2">
+                <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+              </svg>
+              Cảm ơn bạn đã đánh giá!
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2">
+                <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                 <path fillRule="evenodd" d="M5 5.5A2.5 2.5 0 0 1 7.5 3h5A2.5 2.5 0 0 1 15 5.5v5.25a.75.75 0 0 0 1.5 0V5.5A4 4 0 0 0 12.5 1.5h-5A4 4 0 0 0 3.5 5.5v9A4 4 0 0 0 7.5 18.5h3.25a.75.75 0 0 0 0-1.5H7.5a2.5 2.5 0 0 1-2.5-2.5v-9Z" clipRule="evenodd" />
+                 <path fillRule="evenodd" d="M15.22 11.22a.75.75 0 0 1-.06.06l-2.75 2.75a.75.75 0 1 1-1.06-1.06L13.31 11H9.75a.75.75 0 0 1 0-1.5h3.56l-1.94-1.94a.75.75 0 1 1 1.06-1.06l2.75 2.75a.75.75 0 0 1 .06.94Zm-1.56 2.56-.22.22a.75.75 0 0 1-1.06 0l-2.75-2.75a.75.75 0 0 1 1.06-1.06l2.22 2.22 2.22-2.22a.75.75 0 0 1 1.06 1.06l-2.75 2.75a.75.75 0 0 1-.82.22Z" clipRule="evenodd" />
+              </svg>
+              Để lại đánh giá
+            </>
+          )}
+        </button>
+      </div>
+
     </div>
   );
 };

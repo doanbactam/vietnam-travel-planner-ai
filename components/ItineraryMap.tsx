@@ -1,4 +1,3 @@
-
 /// <reference types="@types/google.maps" />
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -7,11 +6,11 @@ import { LoadingIcon } from './LoadingIcon';
 
 // FIX: Add global declaration for window.google to help TypeScript recognize the Google Maps API.
 // This assumes that @types/google.maps is installed and the triple-slash directive above correctly loads the types.
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
+// Removed problematic 'declare global' block for 'window.google'.
+// The '/// <reference types="@types/google.maps" />' directive is the standard way to include these global types.
+// The previous declaration for 'window.google' referenced 'typeof google', which failed as 'google' was not a recognized name,
+// likely due to the broader issue of the type definition file not being found (error on line 2).
+// Relying on the triple-slash directive is a cleaner approach.
 
 interface ItineraryMapProps {
   mapData: MapData;
