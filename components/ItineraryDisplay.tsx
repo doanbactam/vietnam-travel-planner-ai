@@ -1,17 +1,22 @@
 
 import React, { useState } from 'react';
-import { ItineraryData, GeneralNote, FinalThoughtItem, DayPlan } from '../types';
+import { ItineraryData, GeneralNote, FinalThoughtItem, DayPlan, ActivityItem } from '../types'; 
 import { DayCard } from './DayCard';
 import { ItineraryMap } from './ItineraryMap';
 
 interface ItineraryDisplayProps {
   itineraryData: ItineraryData;
   googleMapsApiAvailable: boolean;
-  onOpenFeedback: () => void; // Callback to open feedback modal
-  feedbackSubmitted: boolean; // To change button text/state
+  onOpenFeedback: () => void; 
+  feedbackSubmitted: boolean; 
+  isEditMode: boolean;
+  onToggleEditMode: () => void;
+  onOpenAddActivityModal: (dayIndex: number, sectionIndex: number) => void;
+  onOpenEditActivityModal: (dayIndex: number, sectionIndex: number, activity: ActivityItem) => void; // New prop
+  onDeleteActivity: (dayIndex: number, sectionIndex: number, activityId: string) => void;
 }
 
-const TAB_THRESHOLD = 7; // Display as tabs if more than 7 days
+const TAB_THRESHOLD = 7; 
 
 const formatCurrency = (value?: number, currencyCode: string = "VND"): string => {
   if (value === undefined || value === null) return '';
@@ -69,7 +74,12 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
   itineraryData, 
   googleMapsApiAvailable,
   onOpenFeedback,
-  feedbackSubmitted 
+  feedbackSubmitted,
+  isEditMode,
+  onToggleEditMode,
+  onOpenAddActivityModal,
+  onOpenEditActivityModal, // Destructure new prop
+  onDeleteActivity
 }) => {
   const [activeTab, setActiveTab] = useState<number>(0);
 
@@ -81,21 +91,71 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
   const renderDayCards = () => {
     if (showTabs) {
       const activeDayPlan = days[activeTab];
-      return activeDayPlan ? <DayCard dayPlan={activeDayPlan} formatCurrency={formatCurrency} /> : null;
+      return activeDayPlan ? (
+        <DayCard 
+            key={`${activeDayPlan.dayNumber}-${activeTab}`}
+            dayPlan={activeDayPlan} 
+            formatCurrency={formatCurrency}
+            isEditMode={isEditMode}
+            dayIndex={activeTab} 
+            onOpenAddActivityModal={onOpenAddActivityModal}
+            onOpenEditActivityModal={onOpenEditActivityModal} // Pass prop
+            onDeleteActivity={onDeleteActivity}
+        />
+      ) : null;
     }
-    return days.map((dayPlan) => (
-      <DayCard key={dayPlan.dayNumber} dayPlan={dayPlan} formatCurrency={formatCurrency} />
+    return days.map((dayPlan, index) => (
+      <DayCard 
+        key={dayPlan.dayNumber} 
+        dayPlan={dayPlan} 
+        formatCurrency={formatCurrency}
+        isEditMode={isEditMode}
+        dayIndex={index} 
+        onOpenAddActivityModal={onOpenAddActivityModal}
+        onOpenEditActivityModal={onOpenEditActivityModal} // Pass prop
+        onDeleteActivity={onDeleteActivity}
+      />
     ));
   };
 
   return (
     <div className="mt-12 pt-10 border-t border-slate-300/80">
-      <div className="mb-10 text-center">
+      <div className="mb-8 text-center">
         <h2 className="text-3xl sm:text-4xl font-bold text-teal-700 mb-3 tracking-tight">{title}</h2>
         {overview && <p className="text-md text-slate-600 max-w-2xl mx-auto">{overview}</p>}
       </div>
 
-      {/* Estimated Total Cost Display */}
+      <div className="mb-6 flex justify-end items-center">
+          <label htmlFor="editModeToggle" className="mr-3 text-sm font-medium text-slate-700">
+            Chế độ Chỉnh sửa:
+          </label>
+          <button
+            id="editModeToggle"
+            onClick={onToggleEditMode}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2
+              ${isEditMode 
+                ? 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400' 
+                : 'bg-sky-500 text-white hover:bg-sky-600 focus:ring-sky-400'
+              }`}
+          >
+            {isEditMode ? (
+                 <>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1.5 inline">
+                        <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                    </svg>
+                    Hoàn tất
+                 </>
+            ) : (
+                <>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1.5 inline">
+                     <path d="m2.695 14.763 7.275-7.275a.5.5 0 0 1 .707 0l1.414 1.414a.5.5 0 0 1 0 .707l-7.275 7.275a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 0-.707zm.536-9.536a.5.5 0 0 1 .707 0l1.414 1.414a.5.5 0 0 1 0 .707l-1.414 1.414a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 0-.707l1.414-1.414zM14.5 7a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z" />
+                    </svg>
+                    Chỉnh sửa
+                </>
+            )}
+          </button>
+        </div>
+
       {estimatedTotalCost !== undefined && totalCostCurrency && (
         <div className="mb-8 p-5 bg-emerald-50 border-l-4 border-emerald-500 rounded-lg shadow-md">
           <div className="flex items-center">
@@ -114,7 +174,6 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
           )}
         </div>
       )}
-      {/* End Estimated Total Cost Display */}
 
 
       {feasibilityWarning && (
@@ -152,7 +211,7 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
           <nav className="-mb-px flex space-x-1 sm:space-x-2 overflow-x-auto pb-px scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent" aria-label="Tabs">
             {days.map((day, index) => (
               <button
-                key={day.dayNumber}
+                key={`${day.dayNumber}-${index}`}
                 onClick={() => setActiveTab(index)}
                 className={`shrink-0 whitespace-nowrap px-3 py-3 sm:px-4 text-sm font-medium rounded-t-md transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1
                   ${activeTab === index
@@ -195,7 +254,6 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
         </div>
       )}
 
-      {/* Feedback Button Section */}
       <div className="mt-12 pt-8 border-t border-slate-300/80 text-center">
         <h3 className="text-xl font-semibold text-slate-800 mb-3">
           Lịch trình này có hữu ích với bạn không?
@@ -206,10 +264,12 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
         </p>
         <button
           onClick={onOpenFeedback}
-          disabled={feedbackSubmitted}
+          disabled={feedbackSubmitted || isEditMode} 
           className={`px-6 py-3 text-sm font-medium rounded-lg shadow-md transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2
             ${feedbackSubmitted 
               ? 'bg-green-500 text-white cursor-not-allowed flex items-center justify-center'
+              : isEditMode
+              ? 'bg-slate-400 text-white cursor-not-allowed'
               : 'bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-500 transform hover:scale-105 active:scale-95'
             }`}
           aria-label={feedbackSubmitted ? "Cảm ơn bạn đã đánh giá!" : "Để lại đánh giá và phản hồi"}

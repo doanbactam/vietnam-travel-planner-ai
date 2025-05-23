@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { PlanRequest, ItineraryData } from "../types";
+import { PlanRequest, ItineraryData, ActivityItem } from "../types"; // Added ActivityItem for potential use if needed, though not directly used in this change
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
 
@@ -14,157 +14,214 @@ export const generateItinerary = async (request: PlanRequest): Promise<Itinerary
   try {
     const promptParts = [
       "Bạn là một chuyên gia hoạch định du lịch AI, chuyên sâu về các điểm đến tại Việt Nam và am hiểu văn hóa, lễ hội địa phương.",
-      "Hãy tạo một kế hoạch du lịch chi tiết, hấp dẫn và khả thi cho chuyến đi đến Việt Nam dựa trên các thông tin sau:\n",
+      "Hãy tạo một kế hoạch du lịch chi tiết, hấp dẫn và khả thi cho chuyến đi đến ViệtNam dựa trên các thông tin sau:\n",
       `1. **Điểm khởi hành (nếu có):** ${request.departurePoint || "Không được cung cấp (có thể bắt đầu từ điểm đến đầu tiên)"}`,
       `2. **Các điểm đến chính:** ${request.destinations}`,
       `3. **Thời gian chuyến đi:** ${request.duration} ngày`,
       `4. **Số lượng người đi (nếu có):** ${request.numberOfTravelers || "1 người (mặc định)"}. Nếu có nhiều người, hãy cân nhắc các hoạt động/gợi ý phù hợp cho nhóm.`,
-      `5. **Sở thích:** ${request.interests || "Tổng hợp (bao gồm văn hóa, lịch sử, thiên nhiên, ẩm thực, thư giãn/nghỉ dưỡng)"}. Đây là một chuỗi các sở thích, có thể do người dùng tự nhập hoặc chọn từ gợi ý, cách nhau bởi dấu phẩy.`,
-      "   Hãy **lồng ghép sâu sắc** các sở thích này vào từng hoạt động và gợi ý cụ thể hàng ngày.",
-      `6. **Mục đích chuyến đi (nếu có):** ${request.tripPurpose || "Không được cung cấp (xem xét chung)"}. Nếu có mục đích cụ thể (ví dụ: Gia đình, Cặp đôi, Bạn bè, Team Building, Một mình), hãy điều chỉnh không khí và loại hình hoạt động cho phù hợp. Ví dụ, chuyến đi gia đình có thể bao gồm các hoạt động thân thiện với trẻ em, chuyến đi cặp đôi có thể có gợi ý lãng mạn.`,
-      `7. **Ưu tiên về khách sạn (nếu có):** ${request.hotelPreference || "Bất kỳ"}.`,
-      "   Dựa vào ưu tiên này, hãy đưa ra gợi ý về loại hình lưu trú hoặc khu vực trong mục 'accommodationSuggestion' của mỗi ngày.",
-      "   **Quan trọng về Khách sạn:**",
-      "     - TUYỆT ĐỐI KHÔNG đề xuất tên khách sạn cụ thể.",
-      "     - Cung cấp một khoảng giá ước tính cho chỗ ở trong trường 'accommodationSuggestion' bằng cách sử dụng 'minPrice', 'maxPrice', và 'priceCurrency' (ưu tiên 'VND'). Ví dụ: 'minPrice': 500000, 'maxPrice': 1000000, 'priceCurrency': 'VND'. Đây là giá cho một đêm cho số lượng người đi.",
-      `8. **Gợi ý "Hot" và "Trendy" (Lấy cảm hứng từ Mạng Xã Hội):**`,
-      "   Trong mục 'trendySuggestion' của mỗi ngày (nếu có), lồng ghép các gợi ý về địa điểm, quán cà phê, nhà hàng, hoạt động hoặc sự kiện địa phương đang 'hot'.",
-      "   Sử dụng cụm từ như 'Địa điểm này đang được nhiều bạn trẻ yêu thích check-in gần đây 👀', 'Một trải nghiệm thú vị đang được chia sẻ nhiều là ✨...' để gợi ý.",
-      `9. **Yếu tố Địa phương hóa (Văn hóa, Lễ hội, Điểm đến độc đáo):**`,
-      "   **Lễ hội truyền thống:** Nếu chuyến đi có thể diễn ra gần hoặc trong các dịp lễ hội lớn của Việt Nam, hãy lồng ghép thông tin này vào các hoạt động hoặc 'dailyNotes'.",
-      "   **Điểm đến ít người biết:** Bên cạnh các địa danh nổi tiếng, cân nhắc gợi ý các điểm đến độc đáo, ít được biết đến hơn nhưng mang đậm bản sắc.",
-      "   **Ẩm thực vùng miền:** Nhấn mạnh các món ăn đặc trưng của từng vùng miền trong các 'items' thuộc loại 'food'.",
-      `10. **Chi phí ước tính:**`,
-      "    - Cho mỗi 'ActivityItem' (đặc biệt là vé vào cửa, bữa ăn có thể ước lượng, phương tiện di chuyển cụ thể), cung cấp 'estimatedCost' (là một SỐ) và 'currency' (ưu tiên 'VND'). Nếu không có chi phí cụ thể hoặc không áp dụng (ví dụ: đi dạo), có thể bỏ qua các trường này cho item đó.",
-      "    - KHÔNG bao gồm chi phí trong trường 'description' hay 'details'. Chỉ dùng trường 'estimatedCost'.",
-      "    - Cung cấp một 'costDisclaimer' chung ở cấp độ cao nhất của JSON, ví dụ: 'Đây là chi phí ước tính và có thể thay đổi. Giá chưa bao gồm vé máy bay/tàu xe đường dài giữa các thành phố lớn (nếu có) và chi tiêu cá nhân.'",
-
-
-      "\nYÊU CẦU CHI TIẾT CHO LỊCH TRÌNH (ĐỊNH DẠNG JSON):",
-      "Hãy trả về kết quả dưới dạng một đối tượng JSON hợp lệ. TUYỆT ĐỐI KHÔNG BAO GỒM BẤT KỲ VĂN BẢN NÀO BÊN NGOÀI CẶP DẤU NGOẶC NHỌN {} CỦA JSON. Toàn bộ phản hồi phải là một chuỗi JSON.",
-      "Cấu trúc JSON mong muốn như sau (đảm bảo tất cả các chuỗi văn bản bằng tiếng Việt có dấu):",
-      `
-{
-  "title": "Tiêu đề chung của chuyến đi (ví dụ: Chuyến phiêu lưu 7 ngày tại Việt Nam)",
-  "overview": "Một đoạn mô tả ngắn gọn tổng quan về chuyến đi (2-3 câu, tiếng Việt).",
-  "generalNotes": [
-    { "type": "important", "content": "Nội dung lưu ý chung quan trọng (tiếng Việt)", "icon": "💡" }
-  ],
-  "costDisclaimer": "Đây là chi phí ước tính và có thể thay đổi. Giá chưa bao gồm vé máy bay/tàu xe đường dài giữa các thành phố lớn (nếu có) và chi tiêu cá nhân. (tiếng Việt)",
-  "days": [
-    {
-      "dayNumber": 1,
-      "date": "Ngày 1",
-      "title": "Tiêu đề cho ngày, ví dụ: Khám phá Hà Nội Cổ Kính 🏙️ (tiếng Việt)",
-      "summary": "Mô tả ngắn gọn các hoạt động chính trong ngày (tiếng Việt).",
-      "sections": [
-        {
-          "title": "Buổi sáng ☀️ (tiếng Việt)",
-          "items": [
-            { "type": "activity", "description": "Hoạt động buổi sáng 1 (tiếng Việt)", "icon": "🚶‍♀️", "estimatedCost": 50000, "currency": "VND" },
-            { "type": "transport", "description": "Di chuyển đến X bằng Y (tiếng Việt)", "icon": "🚕", "estimatedCost": 30000, "currency": "VND" },
-            { "type": "food", "description": "Ăn sáng: Phở bò tại quán Z (tiếng Việt)", "icon": "🍜", "estimatedCost": 60000, "currency": "VND" }
-          ]
-        }
-      ],
-      "dailyNotes": [
-        { "content": "Lưu ý riêng cho ngày này (tiếng Việt)", "icon": "📝" }
-      ],
-      "trendySuggestion": {
-        "title": "Điểm check-in 'hot' 🔥 (tiếng Việt)",
-        "description": "Ghé thăm [Tên địa điểm trendy] (tiếng Việt)",
-        "icon": "📸"
-      },
-      "accommodationSuggestion": {
-         "type": "Gợi ý chung về khu vực/loại hình lưu trú (tiếng Việt)",
-         "details": "Ví dụ: Khu vực Phố Cổ có nhiều homestay và khách sạn tầm trung. (tiếng Việt)",
-         "minPrice": 700000,
-         "maxPrice": 1500000,
-         "priceCurrency": "VND"
-      }
-    }
-  ],
-  "mapData": {
-    "points": [
-      {
-        "name": "Tên địa điểm chính 1 (ví dụ: Hồ Hoàn Kiếm)",
-        "latitude": 21.0285,
-        "longitude": 105.8542,
-        "description": "Mô tả ngắn gọn về địa điểm này cho marker trên bản đồ (tiếng Việt)",
-        "icon": "📍"
-      }
-    ],
-    "routes": [
-      {
-        "name": "Tuyến đường từ Điểm A đến Điểm B (ví dụ: Từ Văn Miếu đến Lăng Bác)",
-        "startPointName": "Tên điểm bắt đầu (phải khớp với một 'name' trong 'points')",
-        "endPointName": "Tên điểm kết thúc (phải khớp với một 'name' trong 'points')",
-        "transportMode": "Phương tiện di chuyển (ví dụ: Đi bộ, Xe máy, Xe buýt)",
-        "travelTime": "Thời gian di chuyển ước tính (ví dụ: Khoảng 15 phút)"
-      }
-    ],
-    "initialCenter": { "latitude": 21.0278, "longitude": 105.8342 },
-    "initialZoom": 12
-  },
-  "finalThoughts": {
-      "travelTips": [
-          { "title": "Đổi tiền & Sim 4G (tiếng Việt)", "content": "Nên đổi một ít tiền mặt và mua SIM 4G tại sân bay. (tiếng Việt)", "icon": "📱" }
-      ],
-      "bookingAdvice": "Đây là lịch trình gợi ý. Bạn nên tự tìm hiểu và đặt vé máy bay, khách sạn, tour (nếu có) trước chuyến đi. (tiếng Việt)",
-      "culturalInsights": [
-        { "title": "Văn hóa giao tiếp (tiếng Việt)", "content": "Người Việt Nam thân thiện và mến khách. Một nụ cười và lời chào sẽ giúp bạn dễ dàng kết nối. (tiếng Việt)", "icon": "🤝" }
-      ]
-  },
-  "feasibilityWarning": "Nếu các điểm đến quá xa nhau hoặc không khả thi trong thời gian chuyến đi, hãy đưa ra cảnh báo ở đây. (tiếng Việt). Ví dụ: 'Lịch trình này khá tham vọng với nhiều điểm đến ở các vùng miền khác nhau. Bạn có thể cân nhắc tập trung vào một khu vực hoặc kéo dài thời gian chuyến đi để có trải nghiệm thoải mái hơn.'"
+      `5. **Sở thích:** ${request.interests || "Tổng hợp (bao gồm văn hóa, lịch sử, thiên nhiên, ẩm thực, thư giãn/nghỉ ngơi, khám phá, phiêu lưu, mua sắm). Nếu có sở thích cụ thể, hãy ưu tiên các hoạt động liên quan."}`,
+      `6. **Ưu tiên về khách sạn:** ${request.hotelPreference || "Bất kỳ"}. AI chỉ cần đưa ra gợi ý chung về loại hình lưu trú (ví dụ: "Khách sạn 3 sao tiện nghi", "Homestay gần gũi văn hóa địa phương") trong \`accommodationSuggestion\`, không cần tên khách sạn cụ thể. Hãy cung cấp khoảng giá ước tính (minPrice, maxPrice) cho gợi ý lưu trú nếu có thể, đơn vị VND.`,
+      `7. **Mục đích chuyến đi (nếu có):** ${request.tripPurpose || "Không xác định"}. Điều chỉnh phong cách lịch trình cho phù hợp (ví dụ: gia đình thì thoải mái, cặp đôi thì lãng mạn, bạn bè thì năng động).`,
+      "\n**YÊU CẦU VỀ ĐỊNH DẠNG OUTPUT (JSON):**",
+      "Luôn trả về một đối tượng JSON duy nhất, không có ký tự ```json ``` bao quanh. Đối tượng JSON phải tuân thủ nghiêm ngặt cấu trúc TypeScript `ItineraryData` sau:\n",
+      "```typescript",
+// FIX: Replaced the placeholder comment and old interface definitions with a complete set of explicit interface definitions.
+// This includes defining AccommodationSuggestion and other related types, and updating ItineraryData to use these named types.
+`
+export interface ActivityItem {
+  id?: string; // Frontend sẽ tự tạo nếu không có
+  type: 'activity' | 'food' | 'transport' | 'note' | 'interaction';
+  description: string; // Mô tả chính của hoạt động
+  icon?: string; // Emoji gợi ý (ví dụ: 🏛️, 🍜, 🚶)
+  details?: string; // Thông tin chi tiết thêm (giờ mở cửa, mẹo nhỏ, lý do gợi ý, v.v.)
+  estimatedCost?: number; // Chi phí ước tính (số nguyên, ví dụ: 150000)
+  currency?: string; // Đơn vị tiền tệ (ví dụ: "VND"), mặc định là VND nếu có cost
 }
-`,
-      "QUAN TRỌNG:",
-      "- **Dữ liệu Bản đồ (`mapData`):**",
-      "  - **`points`**: Cung cấp tọa độ (latitude, longitude) cho CÁC ĐỊA ĐIỂM QUAN TRỌNG được đề cập trong lịch trình. Tên điểm ('name') phải rõ ràng.",
-      "  - **`routes`**: Mô tả các TUYẾN ĐƯỜNG CHÍNH giữa các `points` đã nêu. `startPointName` và `endPointName` PHẢI KHỚP với `name` của các điểm trong mảng `points`.",
-      "  - Nếu không có thông tin bản đồ phù hợp (ví dụ, chuyến đi quá trừu tượng), `mapData` có thể được bỏ qua hoặc để trống (`points: [], routes: []`).",
-      "- **Biểu tượng (icon):** Sử dụng emoji phù hợp cho trường 'icon' trong các mục. Emoji giúp lịch trình trực quan hơn.",
-      "- **Tính nhất quán:** Giữ cấu trúc JSON nhất quán cho tất cả các ngày và các mục.",
-      "- **Nội dung:** Các mô tả phải chi tiết, hữu ích, bằng tiếng Việt có dấu và tuân thủ các yêu cầu về sở thích, địa phương hóa đã nêu trước đó.",
-      "- **Không Markdown:** Nội dung trong các trường 'description', 'content', 'title', 'summary' phải là văn bản thuần túy, không chứa cú pháp Markdown.",
-      "- **Chỉ JSON:** Nhắc lại, toàn bộ phản hồi BẮT BUỘC phải là một chuỗi JSON hợp lệ, không có bất kỳ ký tự nào bên ngoài cặp dấu ngoặc nhọn chính của đối tượng JSON.",
-      "- **Tính logic và khả thi:** Sắp xếp lịch trình hợp lý. Nếu các điểm đến quá xa, đề cập việc di chuyển bằng máy bay trong 'items' loại 'transport' hoặc trong 'feasibilityWarning'.",
-      "- **Đơn vị tiền tệ:** Ưu tiên sử dụng 'VND' cho tất cả các trường 'currency' và 'priceCurrency'. Nếu không thể cung cấp chi phí, hãy bỏ qua các trường 'estimatedCost', 'minPrice', 'maxPrice' thay vì đặt giá trị 0 hoặc null.",
-      "**Bắt đầu trực tiếp với đối tượng JSON, không cần lời chào hỏi hay giới thiệu ban đầu.**"
-    ];
-    
-    const prompt = promptParts.join("\n");
+
+export interface SectionDetail {
+  title: string; 
+  items: ActivityItem[];
+}
+
+export interface TrendySuggestion {
+  title: string;
+  description: string;
+  icon?: string;
+}
+
+export interface AccommodationSuggestion {
+  type: string;
+  details: string;
+  minPrice?: number; 
+  maxPrice?: number; 
+  priceCurrency?: string; 
+}
+
+export interface DailyNote {
+  content: string;
+  icon?: string;
+}
+
+export interface MapPoint {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string; 
+  icon?: string; 
+}
+
+export interface MapRoute {
+  name: string; 
+  startPointName: string; 
+  endPointName: string;   
+  transportMode?: string; 
+  travelTime?: string;    
+  notes?: string; 
+}
+
+export interface MapData {
+  points: MapPoint[];
+  routes: MapRoute[];
+  initialCenter?: { 
+    latitude: number;
+    longitude: number;
+  };
+  initialZoom?: number; 
+}
+
+export interface DayPlan {
+  dayNumber: number;
+  date: string; 
+  title: string; 
+  summary?: string; 
+  sections: SectionDetail[];
+  dailyNotes?: DailyNote[];
+  trendySuggestion?: TrendySuggestion;
+  accommodationSuggestion?: AccommodationSuggestion;
+  estimatedDailyCost?: number; // Sẽ được tính bởi frontend
+  dailyCostCurrency?: string; // Sẽ được tính bởi frontend
+}
+
+export interface GeneralNote {
+  type: 'important' | 'tip' | 'info';
+  content: string;
+  icon?: string;
+}
+
+export interface FinalThoughtItem {
+  title: string;
+  content: string;
+  icon?: string;
+}
+
+export interface ItineraryData {
+  title: string; // Tên lịch trình, ví dụ: "Khám phá Hà Nội 3 ngày 2 đêm"
+  overview?: string; // Mô tả tổng quan về chuyến đi
+  generalNotes?: GeneralNote[];
+  days: DayPlan[];
+  finalThoughts?: {
+    travelTips?: FinalThoughtItem[];
+    bookingAdvice?: string;
+    culturalInsights?: FinalThoughtItem[];
+  };
+  mapData?: MapData; 
+  feasibilityWarning?: string; // Cảnh báo nếu lịch trình quá dày đặc hoặc không khả thi
+  estimatedTotalCost?: number; // Sẽ được tính bởi frontend
+  totalCostCurrency?: string; // Sẽ được tính bởi frontend
+  costDisclaimer?: string; // Lời khuyên về chi phí, ví dụ: "Chi phí trên chỉ là ước tính và có thể thay đổi."
+}
+      `,
+      "```\n",
+      "**HƯỚNG DẪN CHI TIẾT VỀ NỘI DUNG:**",
+      "1.  **`title` (ItineraryData):** Tạo tiêu đề hấp dẫn, phản ánh đúng điểm đến và thời gian. Ví dụ: 'Hành trình 5 ngày khám phá Đà Nẵng - Hội An'.",
+      "2.  **`overview` (ItineraryData):** Viết một đoạn mô tả ngắn gọn, thu hút về chuyến đi.",
+      "3.  **`days` (Array<DayPlan>):**",
+      "    *   **`dayNumber`**: Bắt đầu từ 1.",
+      "    *   **`date`**: Ghi rõ ngày tháng, ví dụ 'Ngày 1 (dd/mm/yyyy)' hoặc 'Thứ X, dd/mm'.",
+      "    *   **`title` (DayPlan):** Tiêu đề cho ngày, ví dụ: 'Khám phá nét cổ kính của Phố cổ Hội An'.",
+      "    *   **`summary` (DayPlan):** Tóm tắt các hoạt động chính trong ngày.",
+      "    *   **`sections` (Array<SectionDetail>):** Chia ngày thành các buổi (Sáng, Trưa, Chiều, Tối) hoặc các phần hợp lý. Mỗi section có `title` và danh sách `items` (ActivityItem).",
+      "    *   **`items` (Array<ActivityItem>):**",
+      "        *   **`type`**: Chọn loại phù hợp ('activity', 'food', 'transport', 'note', 'interaction').",
+      "        *   **`description`**: Mô tả rõ ràng, hấp dẫn. Ví dụ: 'Tham quan Dinh Độc Lập', 'Thưởng thức Bún Bò Huế tại quán địa phương', 'Di chuyển bằng xe máy đến đồi Vọng Cảnh'.",
+      "        *   **ĐẶC BIỆT VỚI `type: 'food'` CHO CÁC BỮA CHÍNH (Trưa, Tối):**",
+      "            *   **Nếu có thể và phù hợp với địa điểm, hãy cung cấp 2-3 gợi ý ẩm thực riêng biệt dưới dạng các đối tượng `ActivityItem` khác nhau cho mỗi bữa chính.**",
+      "            *   Mỗi gợi ý nên đại diện cho một khía cạnh khác nhau: ví dụ, một món **truyền thống/đặc sản**, một quán **được đánh giá cao** (nêu chung, không cần điểm số cụ thể), một nơi **thịnh hành/trendy trên mạng xã hội**, hoặc một lựa chọn **ẩm thực đường phố nổi tiếng**.",
+      "            *   Làm rõ tính chất của từng gợi ý trong `description` và `details`. Ví dụ: `description: 'Lựa chọn Truyền thống: Bún Chả Hà Nội'`, `details: 'Thưởng thức tại quán gia truyền XYZ nổi tiếng với công thức cổ truyền, được người dân địa phương yêu thích.'` HOẶC `description: 'Gợi ý Trendy: Quán Cà Phê Trứng ABC'`, `details: 'Quán cà phê nổi tiếng trên mạng xã hội với không gian độc đáo và món cà phê trứng đặc biệt.'`.",
+      "            *   Nếu cung cấp nhiều gợi ý ẩm thực cho một khung giờ ăn, hãy liệt kê chúng tuần tự như các `ActivityItem` trong mục (section) tương ứng.",
+      "        *   **`icon`**: Sử dụng emoji phù hợp (ví dụ: 🏛️ cho di tích, 🍜 cho món ăn, 🚶 cho đi bộ, 🚗 cho di chuyển).",
+      "        *   **`details`**: Cung cấp thông tin bổ sung hữu ích (giờ mở cửa, giá vé tham khảo, mẹo nhỏ, lý do nên thử, đặc điểm nổi bật).",
+      "        *   **`estimatedCost`**: Cung cấp chi phí ước tính (số nguyên) cho vé vào cửa, bữa ăn, di chuyển nếu có thể. Đơn vị tiền tệ mặc định là 'VND'. Nếu không có chi phí cụ thể, có thể bỏ qua.",
+      "        *   **`currency`**: Nếu có `estimatedCost`, đặt là 'VND'.",
+      "    *   **`dailyNotes`**: Ghi chú quan trọng hoặc thú vị cho ngày đó.",
+      "    *   **`trendySuggestion`**: Một gợi ý về một địa điểm/hoạt động đang thịnh hành.",
+      "    *   **`accommodationSuggestion`**: Gợi ý chung về loại hình lưu trú (ví dụ: 'Khách sạn 3 sao', 'Homestay view đẹp'). Cung cấp `minPrice`, `maxPrice` (VND) nếu có thể ước tính.",
+      "4.  **`generalNotes` (ItineraryData):** Các lưu ý quan trọng chung cho cả chuyến đi (an toàn, chuẩn bị, tiền tệ, v.v.).",
+      "5.  **`finalThoughts` (ItineraryData):** Lời khuyên cuối cùng, mẹo du lịch, thông tin văn hóa.",
+      "6.  **`mapData` (ItineraryData):** Nếu có thể, cung cấp tọa độ (latitude, longitude) cho các địa điểm chính trong `points`. Nối các điểm bằng `routes` nếu hợp lý. `initialCenter` và `initialZoom` để hiển thị bản đồ ban đầu.",
+      "7.  **`feasibilityWarning`**: Nếu lịch trình quá dày đặc hoặc có yếu tố không khả thi, hãy nêu rõ ở đây.",
+      "8.  **`costDisclaimer`**: Một câu ngắn gọn ví dụ: 'Tất cả chi phí chỉ mang tính tham khảo và có thể thay đổi tùy thời điểm và lựa chọn cá nhân.'",
+      "9.  **KHÔNG tự ý thêm trường `id` hoặc `votes` vào `ActivityItem`, frontend sẽ xử lý việc đó.**",
+      "10. **Tính thực tế và đa dạng:** Cân nhắc thời gian di chuyển, giờ mở cửa, sự đa dạng của hoạt động và ẩm thực. Ưu tiên các trải nghiệm địa phương đích thực.",
+      "11. **Ngôn ngữ:** Sử dụng tiếng Việt tự nhiên, hấp dẫn, phù hợp với đối tượng du khách.",
+      "12. **Tập trung vào yêu cầu:** Đảm bảo tất cả các yêu cầu trong `PlanRequest` đều được phản ánh trong lịch trình.",
+      "13. **Không bao gồm HTML hoặc Markdown trong các giá trị chuỗi JSON.**",
+      "14. **Luôn trả về JSON hợp lệ.** Kiểm tra kỹ cấu trúc JSON trước khi hoàn thành.",
+      "---------------------------------------------------------------------------------------\n",
+      "Dưới đây là yêu cầu cụ thể của người dùng:\n",
+      JSON.stringify(request)
+    ].join('\n');
 
     const response: GenerateContentResponse = await ai.models.generateContent({
-        model: GEMINI_MODEL_NAME,
-        contents: prompt,
-        config: { 
-            responseMimeType: "application/json",
-        }
+      model: GEMINI_MODEL_NAME,
+      contents: [{ role: "user", parts: [{ text: promptParts }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.7, // Slightly creative but still grounded
+        topP: 0.9,
+        topK: 40,
+      }
     });
     
-    let jsonString = response.text;
-    // Remove markdown fences if AI still wraps JSON in them
+    // const responseText = response.response.text(); // Old way, might cause issues
+    const responseText = response.text; // Correct way to get text
+
+    let jsonStr = responseText.trim();
+    // Sometimes the response might still include the markdown fence, remove it if present.
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
-    const match = jsonString.match(fenceRegex);
+    const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
-      jsonString = match[2].trim();
+      jsonStr = match[2].trim();
     }
 
     try {
-      const parsedData = JSON.parse(jsonString) as ItineraryData;
+      const parsedData = JSON.parse(jsonStr) as ItineraryData;
+      // Basic validation
+      if (!parsedData.title || !parsedData.days || !Array.isArray(parsedData.days) || parsedData.days.length === 0) {
+        console.error("Invalid itinerary structure received from AI:", parsedData);
+        throw new Error("AI đã trả về dữ liệu lịch trình không hợp lệ. Vui lòng thử lại với yêu cầu rõ ràng hơn.");
+      }
       return parsedData;
     } catch (e) {
-      console.error('Failed to parse JSON response:', e);
-      console.error('Raw JSON string:', jsonString);
-      throw new Error(`Lỗi phân tích dữ liệu JSON từ AI. Dữ liệu nhận được: ${jsonString.substring(0, 200)}...`);
+      console.error("Failed to parse JSON response from AI:", e);
+      console.error("Raw response text from AI:", responseText);
+      throw new Error("Không thể phân tích dữ liệu lịch trình từ AI. Có thể có lỗi trong định dạng trả về. Vui lòng thử lại.");
     }
 
-  } catch (error) {
-    console.error('Error calling Gemini API:', error);
-    if (error instanceof Error) {
-        throw new Error(`Lỗi từ Gemini API: ${error.message}`);
+  } catch (error: any) {
+    console.error("Error generating itinerary:", error);
+    if (error.message && error.message.includes("API key not valid")) {
+        throw new Error("Lỗi xác thực API Key của Gemini. Vui lòng kiểm tra lại API Key.");
     }
-    throw new Error('Lỗi không xác định khi giao tiếp với Gemini API.');
+    if (error.message && error.message.includes("billing account")) {
+        throw new Error("Có vấn đề với tài khoản thanh toán của Google Cloud liên kết với API Key này.");
+    }
+    if (error.message && error.message.includes("quota")) {
+        throw new Error("Đã vượt quá hạn ngạch sử dụng API. Vui lòng thử lại sau hoặc kiểm tra giới hạn của bạn.");
+    }
+     if (error.message && error.message.includes("Content moderately to highly likely to be sexuales")) {
+        throw new Error("Yêu cầu của bạn có thể chứa nội dung không phù hợp hoặc AI đã tạo ra nội dung bị chặn. Vui lòng điều chỉnh yêu cầu.");
+    }
+    throw new Error(error.message || "Đã xảy ra lỗi không xác định khi giao tiếp với AI.");
   }
 };

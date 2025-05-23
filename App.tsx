@@ -6,12 +6,31 @@ import { ItineraryDisplay } from './components/ItineraryDisplay';
 import { LoadingIcon } from './components/LoadingIcon';
 import { ErrorAlert } from './components/ErrorAlert';
 import { PlanHistoryModal } from './components/PlanHistoryModal';
-import { FeedbackModal } from './components/FeedbackModal'; // New import
+import { FeedbackModal } from './components/FeedbackModal';
+import { AddActivityModal } from './components/AddActivityModal';
 import { generateItinerary } from './services/geminiService';
-import { PlanRequest, ItineraryData, StoredPlan, FeedbackData, DayPlan, ActivityItem, AccommodationSuggestion } from './types';
+import { PlanRequest, ItineraryData, StoredPlan, FeedbackData, ActivityItem } from './types';
 
 const GLOBAL_HISTORY_KEY = 'vietnamPlannerHistory_global';
-const FEEDBACK_HISTORY_KEY = 'vietnamPlannerFeedback_global'; // For storing feedback
+const FEEDBACK_HISTORY_KEY = 'vietnamPlannerFeedback_global';
+
+// Helper function to ensure all activity items have unique IDs
+const ensureActivityIds = (itinerary: ItineraryData): ItineraryData => {
+  return {
+    ...itinerary,
+    days: itinerary.days.map(day => ({
+      ...day,
+      sections: day.sections.map(section => ({
+        ...section,
+        items: section.items.map(item => ({
+          ...item,
+          id: item.id || crypto.randomUUID(),
+        })),
+      })),
+    })),
+  };
+};
+
 
 // Helper function to calculate and set costs
 const calculateAndSetItineraryCosts = (itinerary: ItineraryData): ItineraryData => {
@@ -33,7 +52,7 @@ const calculateAndSetItineraryCosts = (itinerary: ItineraryData): ItineraryData 
       const acc = day.accommodationSuggestion;
       if (acc.minPrice !== undefined && acc.maxPrice !== undefined && (acc.priceCurrency === defaultCurrency || !acc.priceCurrency)) {
         dailyCost += (acc.minPrice + acc.maxPrice) / 2;
-      } else if (acc.minPrice !== undefined && (acc.priceCurrency === defaultCurrency || !acc.priceCurrency)) { // Use minPrice if maxPrice is not available
+      } else if (acc.minPrice !== undefined && (acc.priceCurrency === defaultCurrency || !acc.priceCurrency)) { 
         dailyCost += acc.minPrice;
       }
     }
@@ -51,10 +70,15 @@ const calculateAndSetItineraryCosts = (itinerary: ItineraryData): ItineraryData 
     days: updatedDays,
     estimatedTotalCost: totalTripCost > 0 ? totalTripCost : undefined,
     totalCostCurrency: totalTripCost > 0 ? defaultCurrency : undefined,
-    // costDisclaimer is expected from AI
   };
 };
 
+interface ActivityModalState {
+  mode: 'add' | 'edit';
+  dayIndex: number;
+  sectionIndex: number;
+  activity?: ActivityItem; // Present if mode is 'edit'
+}
 
 const App: React.FC = () => {
   const [itinerary, setItinerary] = useState<ItineraryData | null>(null);
@@ -62,8 +86,12 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isGeminiApiKeyMissing, setIsGeminiApiKeyMissing] = useState<boolean>(false);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false); // New state for feedback modal
-  const [feedbackSubmittedForCurrentItinerary, setFeedbackSubmittedForCurrentItinerary] = useState<boolean>(false); // New state
+  const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false); 
+  const [feedbackSubmittedForCurrentItinerary, setFeedbackSubmittedForCurrentItinerary] = useState<boolean>(false); 
+
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [activityModalState, setActivityModalState] = useState<ActivityModalState | null>(null);
+
 
   useEffect(() => {
     if (!process.env.API_KEY) {
@@ -87,15 +115,31 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const savePlanToHistory = useCallback((planData: ItineraryData) => {
+  const savePlanToHistory = useCallback((planData: ItineraryData | null) => {
+    if (!planData) return;
     const currentPlans = getStoredPlans();
-    const newPlan: StoredPlan = {
-      id: new Date().toISOString() + "_" + Math.random().toString(36).substring(2, 9),
-      name: planData.title || "Kế hoạch không tên",
-      createdAt: new Date().toISOString(),
-      itineraryData: planData, // Already includes calculated costs
-    };
-    const updatedPlans = [newPlan, ...currentPlans].slice(0, 20);
+    
+    const existingPlanIndex = currentPlans.findIndex(p => p.itineraryData.title === planData.title); 
+
+    let updatedPlans: StoredPlan[];
+    // Ensure data is fully processed before saving
+    const planWithIdsAndCosts = calculateAndSetItineraryCosts(ensureActivityIds(planData));
+
+
+    if (existingPlanIndex > -1) {
+        currentPlans[existingPlanIndex].itineraryData = planWithIdsAndCosts;
+        currentPlans[existingPlanIndex].createdAt = new Date().toISOString(); 
+        updatedPlans = [...currentPlans];
+    } else {
+        const newPlan: StoredPlan = {
+          id: new Date().toISOString() + "_" + Math.random().toString(36).substring(2, 9),
+          name: planWithIdsAndCosts.title || "Kế hoạch không tên",
+          createdAt: new Date().toISOString(),
+          itineraryData: planWithIdsAndCosts,
+        };
+        updatedPlans = [newPlan, ...currentPlans].slice(0, 20);
+    }
+    
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
   }, [getStoredPlans]);
 
@@ -110,11 +154,13 @@ const App: React.FC = () => {
     setIsLoadingPlan(true);
     setError(null);
     setItinerary(null);
+    setIsEditMode(false); 
     setFeedbackSubmittedForCurrentItinerary(false); 
 
     try {
       const resultFromAI: ItineraryData = await generateItinerary(request);
-      const processedItinerary = calculateAndSetItineraryCosts(resultFromAI);
+      const itineraryWithIds = ensureActivityIds(resultFromAI);
+      const processedItinerary = calculateAndSetItineraryCosts(itineraryWithIds);
       setItinerary(processedItinerary);
       savePlanToHistory(processedItinerary);
     } catch (err) {
@@ -130,12 +176,12 @@ const App: React.FC = () => {
   }, [isGeminiApiKeyMissing, savePlanToHistory]);
 
   const loadPlanFromHistory = (planData: ItineraryData) => {
-    // Recalculate costs for older plans that might not have them stored
-    // or if cost calculation logic changes.
-    const processedPlan = calculateAndSetItineraryCosts(planData);
+    const itineraryWithIds = ensureActivityIds(planData);
+    const processedPlan = calculateAndSetItineraryCosts(itineraryWithIds);
     setItinerary(processedPlan);
     setError(null);
     setShowHistoryModal(false);
+    setIsEditMode(false); 
     setFeedbackSubmittedForCurrentItinerary(false); 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -146,14 +192,9 @@ const App: React.FC = () => {
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
     if (itinerary) {
         const currentLoadedPlanArray = currentPlans.filter(p => p.id === planId);
-         // Check if the currently displayed itinerary is the one being deleted.
-        if (currentLoadedPlanArray.length > 0 && currentLoadedPlanArray[0].itineraryData.title === itinerary.title) {
-             // More robust check: compare unique IDs if itineraryData had one, or deep compare.
-             // For now, if title matches, assume it's the one.
-             // Also check if the raw itinerary data is the same to be more precise.
-             if (JSON.stringify(currentLoadedPlanArray[0].itineraryData) === JSON.stringify(itinerary)){
-                setItinerary(null);
-             }
+        if (currentLoadedPlanArray.length > 0 && JSON.stringify(currentLoadedPlanArray[0].itineraryData) === JSON.stringify(itinerary)){
+           setItinerary(null);
+           setIsEditMode(false); 
         }
     }
   };
@@ -176,13 +217,11 @@ const App: React.FC = () => {
 
   const handleFeedbackSubmit = useCallback((feedback: Omit<FeedbackData, 'itineraryTitle' | 'timestamp'>) => {
     if (!itinerary) return;
-
     const fullFeedback: FeedbackData = {
       ...feedback,
       itineraryTitle: itinerary.title,
       timestamp: new Date().toISOString(),
     };
-
     console.log("Feedback Received:", fullFeedback);
     try {
       const existingFeedback = localStorage.getItem(FEEDBACK_HISTORY_KEY);
@@ -192,9 +231,118 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Error saving feedback to localStorage:", e);
     }
-    
     setFeedbackSubmittedForCurrentItinerary(true); 
   }, [itinerary]);
+
+  // Edit mode functions
+  const toggleEditMode = useCallback(() => {
+    setIsEditMode(prev => !prev);
+  }, []);
+
+  const handleOpenAddActivityModal = useCallback((dayIndex: number, sectionIndex: number) => {
+    setActivityModalState({ mode: 'add', dayIndex, sectionIndex });
+  }, []);
+  
+  const handleOpenEditActivityModal = useCallback((dayIndex: number, sectionIndex: number, activity: ActivityItem) => {
+    setActivityModalState({ mode: 'edit', dayIndex, sectionIndex, activity });
+  }, []);
+
+  const handleCloseActivityModal = useCallback(() => {
+    setActivityModalState(null);
+  }, []);
+
+  const handleSaveActivity = useCallback((submittedData: Omit<ActivityItem, 'id'>) => {
+    if (!itinerary || !activityModalState) return;
+
+    const { mode, dayIndex, sectionIndex, activity: existingActivity } = activityModalState;
+    let updatedItineraryData = { ...itinerary };
+
+    if (mode === 'edit' && existingActivity) {
+      const updatedActivity: ActivityItem = { ...existingActivity, ...submittedData };
+      updatedItineraryData.days = itinerary.days.map((day, dIndex) => {
+        if (dIndex === dayIndex) {
+          return {
+            ...day,
+            sections: day.sections.map((section, sIndex) => {
+              if (sIndex === sectionIndex) {
+                return {
+                  ...section,
+                  items: section.items.map(item => item.id === existingActivity.id ? updatedActivity : item),
+                };
+              }
+              return section;
+            }),
+          };
+        }
+        return day;
+      });
+    } else if (mode === 'add') {
+      const newActivity: ActivityItem = {
+        ...submittedData,
+        id: crypto.randomUUID(),
+      };
+      updatedItineraryData.days = itinerary.days.map((day, dIndex) => {
+        if (dIndex === dayIndex) {
+          return {
+            ...day,
+            sections: day.sections.map((section, sIndex) => {
+              if (sIndex === sectionIndex) {
+                return {
+                  ...section,
+                  items: [...section.items, newActivity],
+                };
+              }
+              return section;
+            }),
+          };
+        }
+        return day;
+      });
+    }
+    
+    const itineraryWithIds = ensureActivityIds(updatedItineraryData);
+    const finalProcessedItinerary = calculateAndSetItineraryCosts(itineraryWithIds);
+    setItinerary(finalProcessedItinerary);
+    savePlanToHistory(finalProcessedItinerary);
+    handleCloseActivityModal();
+  }, [itinerary, activityModalState, savePlanToHistory, handleCloseActivityModal]);
+
+  const handleDeleteActivity = useCallback((dayIndex: number, sectionIndex: number, activityId: string) => {
+    if (!itinerary) return;
+    if (!window.confirm("Bạn có chắc muốn xóa hoạt động này không?")) return;
+
+    // Create a new itinerary object with the item removed
+    const itineraryWithItemRemoved = {
+      ...itinerary,
+      days: itinerary.days.map((day, dIdx) => {
+        if (dIdx !== dayIndex) {
+          return day; // Not the target day, return as is
+        }
+        // Target day, create a new day object
+        return {
+          ...day,
+          sections: day.sections.map((section, sIdx) => {
+            if (sIdx !== sectionIndex) {
+              return section; // Not the target section, return as is
+            }
+            // Target section, create a new section object with filtered items
+            return {
+              ...section,
+              items: section.items.filter(item => item.id !== activityId),
+            };
+          }),
+        };
+      }),
+    };
+
+    // Ensure IDs are consistent on the modified structure
+    const itineraryWithIdsEnsured = ensureActivityIds(itineraryWithItemRemoved);
+    // Then, calculate costs based on the ID-ensured and modified structure
+    const finalProcessedItinerary = calculateAndSetItineraryCosts(itineraryWithIdsEnsured);
+    
+    setItinerary(finalProcessedItinerary);
+    savePlanToHistory(finalProcessedItinerary); // savePlanToHistory will internally re-process, which is fine.
+  }, [itinerary, savePlanToHistory]);
 
 
   if (isGeminiApiKeyMissing) {
@@ -244,6 +392,11 @@ const App: React.FC = () => {
                 googleMapsApiAvailable={isGoogleMapsScriptLoaded}
                 onOpenFeedback={() => setShowFeedbackModal(true)}
                 feedbackSubmitted={feedbackSubmittedForCurrentItinerary}
+                isEditMode={isEditMode}
+                onToggleEditMode={toggleEditMode}
+                onOpenAddActivityModal={handleOpenAddActivityModal}
+                onOpenEditActivityModal={handleOpenEditActivityModal} 
+                onDeleteActivity={handleDeleteActivity}
               />
             )}
             {!itinerary && !isLoadingPlan && !error && (
@@ -279,6 +432,17 @@ const App: React.FC = () => {
           onClose={() => setShowFeedbackModal(false)}
           onSubmit={handleFeedbackSubmit}
           itineraryTitle={itinerary.title}
+        />
+      )}
+      {activityModalState && itinerary && (
+        <AddActivityModal
+          isOpen={!!activityModalState}
+          onClose={handleCloseActivityModal}
+          onSubmit={handleSaveActivity}
+          modalTitle={activityModalState.mode === 'edit' ? 'Chỉnh sửa Hoạt động' : 'Thêm Hoạt động Mới'}
+          initialData={activityModalState.mode === 'edit' ? activityModalState.activity : undefined}
+          currentDayNumber={itinerary.days[activityModalState.dayIndex].dayNumber}
+          currentSectionTitle={itinerary.days[activityModalState.dayIndex].sections[activityModalState.sectionIndex].title}
         />
       )}
     </>

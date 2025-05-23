@@ -1,11 +1,16 @@
 
 import React from 'react';
-import { DayPlan, DailyNote, TrendySuggestion, AccommodationSuggestion } from '../types';
+import { DayPlan, DailyNote, TrendySuggestion, AccommodationSuggestion, ActivityItem } from '../types'; 
 import { Section } from './Section';
 
 interface DayCardProps {
   dayPlan: DayPlan;
   formatCurrency: (value?: number, currencyCode?: string) => string;
+  isEditMode: boolean;
+  dayIndex: number; 
+  onOpenAddActivityModal: (dayIndex: number, sectionIndex: number) => void;
+  onOpenEditActivityModal: (dayIndex: number, sectionIndex: number, activity: ActivityItem) => void; // New prop
+  onDeleteActivity: (dayIndex: number, sectionIndex: number, activityId: string) => void;
 }
 
 const renderDailyNotes = (notes?: DailyNote[]) => {
@@ -67,7 +72,15 @@ const renderAccommodationSuggestion = (
   );
 };
 
-export const DayCard: React.FC<DayCardProps> = ({ dayPlan, formatCurrency }) => {
+export const DayCard: React.FC<DayCardProps> = ({ 
+  dayPlan, 
+  formatCurrency,
+  isEditMode,
+  dayIndex,
+  onOpenAddActivityModal,
+  onOpenEditActivityModal, // Destructure new prop
+  onDeleteActivity
+}) => {
   const { dayNumber, date, title, summary, sections, dailyNotes, trendySuggestion, accommodationSuggestion, estimatedDailyCost, dailyCostCurrency } = dayPlan;
 
   return (
@@ -80,7 +93,7 @@ export const DayCard: React.FC<DayCardProps> = ({ dayPlan, formatCurrency }) => 
                 </h3>
                 {summary && <p className="mt-1.5 text-sm text-teal-100 opacity-90 max-w-xl">{summary}</p>}
             </div>
-            {estimatedDailyCost !== undefined && dailyCostCurrency && (
+            {estimatedDailyCost !== undefined && dailyCostCurrency && !isEditMode && ( 
                 <div className="mt-3 sm:mt-0 sm:ml-4 text-right shrink-0">
                     <p className="text-xs text-teal-200">Chi phí ngày (ước tính):</p>
                     <p className="text-lg font-semibold text-white">
@@ -92,13 +105,27 @@ export const DayCard: React.FC<DayCardProps> = ({ dayPlan, formatCurrency }) => 
       </div>
       
       <div className="p-5 sm:p-6 space-y-5">
-        {sections.map((section, index) => (
-          <Section key={`${dayNumber}-section-${index}`} sectionDetail={section} formatCurrency={formatCurrency} />
+        {sections.map((section, sectionIndex) => (
+          <Section 
+            key={`${dayNumber}-section-${sectionIndex}`} 
+            sectionDetail={section} 
+            formatCurrency={formatCurrency}
+            isEditMode={isEditMode}
+            dayIndex={dayIndex}
+            sectionIndex={sectionIndex}
+            onOpenAddActivityModal={onOpenAddActivityModal}
+            onOpenEditActivityModal={onOpenEditActivityModal} // Pass prop
+            onDeleteActivity={onDeleteActivity}
+          />
         ))}
         
-        {renderDailyNotes(dailyNotes)}
-        {renderTrendySuggestion(trendySuggestion)}
-        {renderAccommodationSuggestion(accommodationSuggestion, formatCurrency)}
+        {!isEditMode && ( 
+          <>
+            {renderDailyNotes(dailyNotes)}
+            {renderTrendySuggestion(trendySuggestion)}
+            {renderAccommodationSuggestion(accommodationSuggestion, formatCurrency)}
+          </>
+        )}
       </div>
     </div>
   );

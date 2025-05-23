@@ -2,26 +2,25 @@
 export interface PlanRequest {
   destinations: string;
   duration: number;
-  interests?: string; // Changed from string[] (implied by checkboxes) to string
+  interests?: string; 
   departurePoint?: string;
   numberOfTravelers?: number;
   hotelPreference?: string;
-  tripPurpose?: string; // New field for trip purpose
+  tripPurpose?: string; 
 }
 
-// New interfaces for structured JSON itinerary
-
 export interface ActivityItem {
+  id: string; // Unique identifier for the activity item
   type: 'activity' | 'food' | 'transport' | 'note' | 'interaction';
   description: string;
-  icon?: string; // Emoji
-  details?: string; // Optional further details
-  estimatedCost?: number; // Estimated cost for this activity
-  currency?: string; // Currency for the estimated cost, e.g., "VND"
+  icon?: string; 
+  details?: string; 
+  estimatedCost?: number; 
+  currency?: string; 
 }
 
 export interface SectionDetail {
-  title: string; // e.g., "Buổi sáng ☀️"
+  title: string; 
   items: ActivityItem[];
 }
 
@@ -34,9 +33,9 @@ export interface TrendySuggestion {
 export interface AccommodationSuggestion {
   type: string;
   details: string;
-  minPrice?: number; // Estimated minimum price for accommodation
-  maxPrice?: number; // Estimated maximum price for accommodation
-  priceCurrency?: string; // Currency for the accommodation price, e.g., "VND"
+  minPrice?: number; 
+  maxPrice?: number; 
+  priceCurrency?: string; 
 }
 
 export interface DailyNote {
@@ -44,52 +43,45 @@ export interface DailyNote {
   icon?: string;
 }
 
-// ---- START: New Map Data Interfaces ----
 export interface MapPoint {
   name: string;
   latitude: number;
   longitude: number;
-  description?: string; // Short description for map marker info window
-  icon?: string; // Emoji or reference to an icon
+  description?: string; 
+  icon?: string; 
 }
 
 export interface MapRoute {
-  name: string; // e.g., "Di chuyển từ Hà Nội đến Vịnh Hạ Long"
-  startPointName: string; // Reference to a MapPoint name
-  endPointName: string;   // Reference to a MapPoint name
-  // The actual coordinates will be looked up from MapPoint by name
-  // startLatitude: number;
-  // startLongitude: number;
-  // endLatitude: number;
-  // endLongitude: number;
-  transportMode?: string; // e.g., "Xe ô tô", "Tàu hỏa", "Máy bay"
-  travelTime?: string;    // e.g., "Khoảng 3 giờ"
-  notes?: string; // Any specific notes about this route
+  name: string; 
+  startPointName: string; 
+  endPointName: string;   
+  transportMode?: string; 
+  travelTime?: string;    
+  notes?: string; 
 }
 
 export interface MapData {
   points: MapPoint[];
   routes: MapRoute[];
-  initialCenter?: { // Optional: AI can suggest an initial map center
+  initialCenter?: { 
     latitude: number;
     longitude: number;
   };
-  initialZoom?: number; // Optional: AI can suggest an initial zoom level
+  initialZoom?: number; 
 }
-// ---- END: New Map Data Interfaces ----
 
 
 export interface DayPlan {
   dayNumber: number;
-  date: string; // Can be simple "Ngày 1" or more descriptive
-  title: string; // e.g., "Khám phá Hà Nội Cổ Kính 🏙️"
-  summary?: string; // Short summary of the day
+  date: string; 
+  title: string; 
+  summary?: string; 
   sections: SectionDetail[];
   dailyNotes?: DailyNote[];
   trendySuggestion?: TrendySuggestion;
   accommodationSuggestion?: AccommodationSuggestion;
-  estimatedDailyCost?: number; // Calculated estimated cost for the day
-  dailyCostCurrency?: string; // Currency for the daily cost, e.g., "VND"
+  estimatedDailyCost?: number; 
+  dailyCostCurrency?: string; 
 }
 
 export interface GeneralNote {
@@ -114,33 +106,28 @@ export interface ItineraryData {
     bookingAdvice?: string;
     culturalInsights?: FinalThoughtItem[];
   };
-  mapData?: MapData; // Add mapData here
+  mapData?: MapData; 
   feasibilityWarning?: string;
-  estimatedTotalCost?: number; // Calculated total estimated cost for the trip
-  totalCostCurrency?: string; // Currency for the total cost, e.g., "VND"
-  costDisclaimer?: string; // Disclaimer about the estimated costs
+  estimatedTotalCost?: number; 
+  totalCostCurrency?: string; 
+  costDisclaimer?: string; 
 }
 
-// Error structure from API (if needed)
 export interface ApiError {
   message: string;
   code?: number;
 }
 
-// StoredPlan interface for plan history
 export interface StoredPlan {
-  id: string;          // Unique ID for the stored plan
-  // userId: string;   // Removed as history is now global
-  name: string;        // Plan title or user-defined name
-  createdAt: string;   // ISO date string
+  id: string;          
+  name: string;        
+  createdAt: string;   
   itineraryData: ItineraryData;
 }
 
-// ---- START: New Feedback Data Interface ----
 export interface FeedbackData {
-  rating: number; // 1-5 stars
+  rating: number; 
   comments?: string;
-  itineraryTitle: string; // To associate feedback with the specific plan
-  timestamp: string; // ISO date string of when feedback was submitted
+  itineraryTitle: string; 
+  timestamp: string; 
 }
-// ---- END: New Feedback Data Interface ----
