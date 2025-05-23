@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vietnam Travel Planner AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar for better aesthetics */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(236, 240, 241, 0.1); /* Slightly lighter track for suggestions */
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(149, 165, 166, 0.7); /* Slightly more visible thumb */
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(127, 140, 141, 1.0);
+    }
+    body {
+      font-family: 'Inter', sans-serif; /* A nice sans-serif font */
+    }
+    /* Apply Inter font if available, otherwise Tailwind's default sans-serif */
+    @import url('https://rsms.me/inter/inter.css');
+    html { font-family: 'Inter', sans-serif; }
+    @supports (font-variation-settings: normal) {
+      html { font-family: 'Inter var', sans-serif; }
+    }
+
+    /* Tailwind plugin for scrollbar styling (if not using ::-webkit-scrollbar directly or for cross-browser) */
+    /* You might need to install and configure tailwind-scrollbar plugin for these classes to work */
+    /* For this example, we rely on ::-webkit-scrollbar and Tailwind's general utility classes */
+    .scrollbar-thin {
+        scrollbar-width: thin; /* For Firefox */
+    }
+    .scrollbar-thumb-slate-300::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1; /* slate-300 */
+    }
+    .scrollbar-track-slate-100::-webkit-scrollbar-track {
+        background-color: #f1f5f9; /* slate-100 */
+    }
+
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
+    "@auth0/auth0-react": "https://esm.sh/@auth0/auth0-react@^2.3.0"
+  }
+}
+</script>
+<!-- Tải Google Maps API bằng JavaScript để sử dụng API key từ biến môi trường -->
+<script>
+  // Hàm tải Google Maps API với API key từ biến môi trường
+  function loadGoogleMapsAPI() {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    
+    if (!apiKey) {
+      console.error('Google Maps API Key không được cấu hình. Vui lòng kiểm tra biến môi trường GOOGLE_MAPS_API_KEY.');
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,core,maps`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+  
+  // Tải Google Maps API sau khi trang đã tải xong
+  window.addEventListener('load', loadGoogleMapsAPI);
+</script>
+</head>
+<body class="bg-cyan-800 scrollbar-thin scrollbar-thumb-slate-400/70 scrollbar-track-slate-200/50">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
