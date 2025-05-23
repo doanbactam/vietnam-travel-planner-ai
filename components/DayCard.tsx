@@ -5,6 +5,7 @@ import { Section } from './Section';
 
 interface DayCardProps {
   dayPlan: DayPlan;
+  formatCurrency: (value?: number, currencyCode?: string) => string;
 }
 
 const renderDailyNotes = (notes?: DailyNote[]) => {
@@ -39,8 +40,20 @@ const renderTrendySuggestion = (suggestion?: TrendySuggestion) => {
   );
 };
 
-const renderAccommodationSuggestion = (suggestion?: AccommodationSuggestion) => {
+const renderAccommodationSuggestion = (
+    suggestion?: AccommodationSuggestion, 
+    formatCurrency?: (value?: number, currencyCode?: string) => string
+) => {
   if (!suggestion) return null;
+  let priceDisplay = '';
+  if (formatCurrency && suggestion.minPrice !== undefined && suggestion.priceCurrency) {
+    if (suggestion.maxPrice !== undefined && suggestion.maxPrice > suggestion.minPrice) {
+      priceDisplay = ` (~ ${formatCurrency(suggestion.minPrice, suggestion.priceCurrency)} - ${formatCurrency(suggestion.maxPrice, suggestion.priceCurrency)}/đêm)`;
+    } else {
+      priceDisplay = ` (~ ${formatCurrency(suggestion.minPrice, suggestion.priceCurrency)}/đêm)`;
+    }
+  }
+
   return (
     <div className="mt-4 p-3.5 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
       <h4 className="text-sm font-semibold text-indigo-800 mb-2 flex items-center">
@@ -48,31 +61,44 @@ const renderAccommodationSuggestion = (suggestion?: AccommodationSuggestion) => 
       </h4>
       <p className="text-xs text-slate-700">
         <strong className="font-medium">{suggestion.type}:</strong> {suggestion.details}
+        {priceDisplay && <span className="text-indigo-700 font-medium">{priceDisplay}</span>}
       </p>
     </div>
   );
 };
 
-export const DayCard: React.FC<DayCardProps> = ({ dayPlan }) => {
-  const { dayNumber, date, title, summary, sections, dailyNotes, trendySuggestion, accommodationSuggestion } = dayPlan;
+export const DayCard: React.FC<DayCardProps> = ({ dayPlan, formatCurrency }) => {
+  const { dayNumber, date, title, summary, sections, dailyNotes, trendySuggestion, accommodationSuggestion, estimatedDailyCost, dailyCostCurrency } = dayPlan;
 
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl">
       <div className="p-6 bg-teal-600 text-white">
-        <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
-          {date}: {title}
-        </h3>
-        {summary && <p className="mt-1.5 text-sm text-teal-100 opacity-90">{summary}</p>}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-start">
+            <div>
+                <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
+                {date}: {title}
+                </h3>
+                {summary && <p className="mt-1.5 text-sm text-teal-100 opacity-90 max-w-xl">{summary}</p>}
+            </div>
+            {estimatedDailyCost !== undefined && dailyCostCurrency && (
+                <div className="mt-3 sm:mt-0 sm:ml-4 text-right shrink-0">
+                    <p className="text-xs text-teal-200">Chi phí ngày (ước tính):</p>
+                    <p className="text-lg font-semibold text-white">
+                        {formatCurrency(estimatedDailyCost, dailyCostCurrency)}
+                    </p>
+                </div>
+            )}
+        </div>
       </div>
       
       <div className="p-5 sm:p-6 space-y-5">
         {sections.map((section, index) => (
-          <Section key={`${dayNumber}-section-${index}`} sectionDetail={section} />
+          <Section key={`${dayNumber}-section-${index}`} sectionDetail={section} formatCurrency={formatCurrency} />
         ))}
         
         {renderDailyNotes(dailyNotes)}
         {renderTrendySuggestion(trendySuggestion)}
-        {renderAccommodationSuggestion(accommodationSuggestion)}
+        {renderAccommodationSuggestion(accommodationSuggestion, formatCurrency)}
       </div>
     </div>
   );

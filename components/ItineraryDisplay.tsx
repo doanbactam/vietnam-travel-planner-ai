@@ -13,6 +13,15 @@ interface ItineraryDisplayProps {
 
 const TAB_THRESHOLD = 7; // Display as tabs if more than 7 days
 
+const formatCurrency = (value?: number, currencyCode: string = "VND"): string => {
+  if (value === undefined || value === null) return '';
+  try {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: currencyCode }).format(value);
+  } catch (e) {
+    return `${value.toLocaleString('vi-VN')} ${currencyCode}`;
+  }
+};
+
 const renderGeneralNotes = (notes?: GeneralNote[]) => {
   if (!notes || notes.length === 0) return null;
   return (
@@ -66,16 +75,16 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
 
   if (!itineraryData) return null;
 
-  const { title, overview, generalNotes, days, finalThoughts, feasibilityWarning, mapData } = itineraryData;
+  const { title, overview, generalNotes, days, finalThoughts, feasibilityWarning, mapData, estimatedTotalCost, totalCostCurrency, costDisclaimer } = itineraryData;
   const showTabs = days.length > TAB_THRESHOLD;
 
   const renderDayCards = () => {
     if (showTabs) {
       const activeDayPlan = days[activeTab];
-      return activeDayPlan ? <DayCard dayPlan={activeDayPlan} /> : null;
+      return activeDayPlan ? <DayCard dayPlan={activeDayPlan} formatCurrency={formatCurrency} /> : null;
     }
     return days.map((dayPlan) => (
-      <DayCard key={dayPlan.dayNumber} dayPlan={dayPlan} />
+      <DayCard key={dayPlan.dayNumber} dayPlan={dayPlan} formatCurrency={formatCurrency} />
     ));
   };
 
@@ -85,6 +94,28 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
         <h2 className="text-3xl sm:text-4xl font-bold text-teal-700 mb-3 tracking-tight">{title}</h2>
         {overview && <p className="text-md text-slate-600 max-w-2xl mx-auto">{overview}</p>}
       </div>
+
+      {/* Estimated Total Cost Display */}
+      {estimatedTotalCost !== undefined && totalCostCurrency && (
+        <div className="mb-8 p-5 bg-emerald-50 border-l-4 border-emerald-500 rounded-lg shadow-md">
+          <div className="flex items-center">
+             <span className="text-2xl mr-3">💰</span>
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-800">
+                Tổng chi phí ước tính:
+              </h3>
+              <p className="text-2xl font-bold text-emerald-700">
+                {formatCurrency(estimatedTotalCost, totalCostCurrency)}
+              </p>
+            </div>
+          </div>
+          {costDisclaimer && (
+            <p className="mt-2.5 text-xs text-slate-600 italic">{costDisclaimer}</p>
+          )}
+        </div>
+      )}
+      {/* End Estimated Total Cost Display */}
+
 
       {feasibilityWarning && (
         <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 rounded-md shadow-md">
@@ -131,6 +162,11 @@ export const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
                 aria-current={activeTab === index ? 'page' : undefined}
               >
                 {day.date || `Ngày ${day.dayNumber}`}
+                {day.estimatedDailyCost !== undefined && day.dailyCostCurrency && (
+                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${activeTab === index ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600'}`}>
+                    ~{formatCurrency(day.estimatedDailyCost, day.dailyCostCurrency).replace(/\sVND$/, '')}
+                  </span>
+                )}
               </button>
             ))}
           </nav>

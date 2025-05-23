@@ -1,16 +1,10 @@
-/// <reference types="@types/google.maps" />
+// FIX: Removed '/// <reference types="@types/google.maps" />' as it was causing an error "Cannot find type definition file".
+// The following fixes assume that the Google Maps API is loaded globally and available on window.google.
+// Types are cast to 'any' or inferred as 'any' to resolve TypeScript errors when @types/google.maps is not found.
 
 import React, { useEffect, useRef, useState } from 'react';
 import { MapData, MapPoint, MapRoute } from '../types';
 import { LoadingIcon } from './LoadingIcon';
-
-// FIX: Add global declaration for window.google to help TypeScript recognize the Google Maps API.
-// This assumes that @types/google.maps is installed and the triple-slash directive above correctly loads the types.
-// Removed problematic 'declare global' block for 'window.google'.
-// The '/// <reference types="@types/google.maps" />' directive is the standard way to include these global types.
-// The previous declaration for 'window.google' referenced 'typeof google', which failed as 'google' was not a recognized name,
-// likely due to the broader issue of the type definition file not being found (error on line 2).
-// Relying on the triple-slash directive is a cleaner approach.
 
 interface ItineraryMapProps {
   mapData: MapData;
@@ -18,11 +12,14 @@ interface ItineraryMapProps {
 
 export const ItineraryMap: React.FC<ItineraryMapProps> = ({ mapData }) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+  // FIX: Changed google.maps.Map to any due to type definition issues.
+  const [map, setMap] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [markers, setMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const [polylines, setPolylines] = useState<google.maps.Polyline[]>([]);
+  // FIX: Changed google.maps.marker.AdvancedMarkerElement[] to any[] due to type definition issues.
+  const [markers, setMarkers] = useState<any[]>([]);
+  // FIX: Changed google.maps.Polyline[] to any[] due to type definition issues.
+  const [polylines, setPolylines] = useState<any[]>([]);
 
   useEffect(() => {
     const initMap = async () => {
@@ -32,17 +29,20 @@ export const ItineraryMap: React.FC<ItineraryMapProps> = ({ mapData }) => {
         return;
       }
 
-      // FIX: Ensure window.google and window.google.maps are checked
-      if (typeof window.google === 'undefined' || typeof window.google.maps === 'undefined') {
+      // FIX: Cast window to 'any' to access 'google' property and avoid 'Property 'google' does not exist on type 'Window'' error.
+      if (typeof (window as any).google === 'undefined' || typeof (window as any).google.maps === 'undefined') {
         setError("Google Maps API chưa sẵn sàng. Vui lòng kiểm tra kết nối mạng hoặc cấu hình API key.");
         setIsLoading(false);
         return;
       }
 
       try {
-        // FIX: Consistently use window.google.maps
-        const { Map } = await window.google.maps.importLibrary("maps") as google.maps.MapsLibrary;
-        const { AdvancedMarkerElement } = await window.google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+        // FIX: Cast window to 'any' and removed specific type casting (as google.maps.MapsLibrary) for imported libraries.
+        // Map constructor will be of type 'any'.
+        const { Map } = await (window as any).google.maps.importLibrary("maps");
+        // FIX: Cast window to 'any' and removed specific type casting (as google.maps.MarkerLibrary) for imported libraries.
+        // AdvancedMarkerElement constructor will be of type 'any'.
+        const { AdvancedMarkerElement } = await (window as any).google.maps.importLibrary("marker");
 
         const initialCenter = mapData.initialCenter || 
                               (mapData.points.length > 0 ? { lat: mapData.points[0].latitude, lng: mapData.points[0].longitude } : { lat: 16.0479, lng: 108.2208 }); // Default to Da Nang
@@ -61,15 +61,17 @@ export const ItineraryMap: React.FC<ItineraryMapProps> = ({ mapData }) => {
         setMap(mapInstance);
         
         // Clear previous markers and polylines
+        // FIX: If 'markers' is any[], 'marker.map' access is fine.
         markers.forEach(marker => marker.map = null);
         setMarkers([]);
+        // FIX: If 'polylines' is any[], 'polyline.setMap' access is fine.
         polylines.forEach(polyline => polyline.setMap(null));
         setPolylines([]);
 
-        const newMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
-        const newPolylines: google.maps.Polyline[] = [];
-        // FIX: Consistently use window.google.maps
-        const bounds = new window.google.maps.LatLngBounds();
+        const newMarkers: any[] = [];
+        const newPolylines: any[] = [];
+        // FIX: Cast window to 'any' to access google.maps.LatLngBounds.
+        const bounds = new (window as any).google.maps.LatLngBounds();
 
         // Add points (markers)
         mapData.points.forEach((point, index) => {
@@ -90,8 +92,8 @@ export const ItineraryMap: React.FC<ItineraryMapProps> = ({ mapData }) => {
               (point.description ? `<p style="margin:0; font-size:0.9em;">${point.description}</p>` : '') +
               `</div>`;
             
-            // FIX: Consistently use window.google.maps
-            const infoWindow = new window.google.maps.InfoWindow({
+            // FIX: Cast window to 'any' to access google.maps.InfoWindow.
+            const infoWindow = new (window as any).google.maps.InfoWindow({
               content: infoWindowContent,
             });
             marker.addListener('click', () => {
@@ -117,8 +119,8 @@ export const ItineraryMap: React.FC<ItineraryMapProps> = ({ mapData }) => {
               { lat: start.latitude, lng: start.longitude },
               { lat: end.latitude, lng: end.longitude },
             ];
-            // FIX: Consistently use window.google.maps
-            const polyline = new window.google.maps.Polyline({
+            // FIX: Cast window to 'any' to access google.maps.Polyline.
+            const polyline = new (window as any).google.maps.Polyline({
               path: path,
               geodesic: true,
               strokeColor: '#10B981', // Teal-500

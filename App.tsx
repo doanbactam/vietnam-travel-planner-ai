@@ -8,10 +8,53 @@ import { ErrorAlert } from './components/ErrorAlert';
 import { PlanHistoryModal } from './components/PlanHistoryModal';
 import { FeedbackModal } from './components/FeedbackModal'; // New import
 import { generateItinerary } from './services/geminiService';
-import { PlanRequest, ItineraryData, StoredPlan, FeedbackData } from './types';
+import { PlanRequest, ItineraryData, StoredPlan, FeedbackData, DayPlan, ActivityItem, AccommodationSuggestion } from './types';
 
 const GLOBAL_HISTORY_KEY = 'vietnamPlannerHistory_global';
 const FEEDBACK_HISTORY_KEY = 'vietnamPlannerFeedback_global'; // For storing feedback
+
+// Helper function to calculate and set costs
+const calculateAndSetItineraryCosts = (itinerary: ItineraryData): ItineraryData => {
+  let totalTripCost = 0;
+  const defaultCurrency = "VND";
+
+  const updatedDays = itinerary.days.map(day => {
+    let dailyCost = 0;
+
+    day.sections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.estimatedCost && (item.currency === defaultCurrency || !item.currency) ) {
+          dailyCost += item.estimatedCost;
+        }
+      });
+    });
+
+    if (day.accommodationSuggestion) {
+      const acc = day.accommodationSuggestion;
+      if (acc.minPrice !== undefined && acc.maxPrice !== undefined && (acc.priceCurrency === defaultCurrency || !acc.priceCurrency)) {
+        dailyCost += (acc.minPrice + acc.maxPrice) / 2;
+      } else if (acc.minPrice !== undefined && (acc.priceCurrency === defaultCurrency || !acc.priceCurrency)) { // Use minPrice if maxPrice is not available
+        dailyCost += acc.minPrice;
+      }
+    }
+    
+    totalTripCost += dailyCost;
+    return {
+      ...day,
+      estimatedDailyCost: dailyCost > 0 ? dailyCost : undefined,
+      dailyCostCurrency: dailyCost > 0 ? defaultCurrency : undefined,
+    };
+  });
+
+  return {
+    ...itinerary,
+    days: updatedDays,
+    estimatedTotalCost: totalTripCost > 0 ? totalTripCost : undefined,
+    totalCostCurrency: totalTripCost > 0 ? defaultCurrency : undefined,
+    // costDisclaimer is expected from AI
+  };
+};
+
 
 const App: React.FC = () => {
   const [itinerary, setItinerary] = useState<ItineraryData | null>(null);
@@ -50,7 +93,7 @@ const App: React.FC = () => {
       id: new Date().toISOString() + "_" + Math.random().toString(36).substring(2, 9),
       name: planData.title || "Kế hoạch không tên",
       createdAt: new Date().toISOString(),
-      itineraryData: planData,
+      itineraryData: planData, // Already includes calculated costs
     };
     const updatedPlans = [newPlan, ...currentPlans].slice(0, 20);
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
@@ -67,12 +110,13 @@ const App: React.FC = () => {
     setIsLoadingPlan(true);
     setError(null);
     setItinerary(null);
-    setFeedbackSubmittedForCurrentItinerary(false); // Reset feedback status for new plan
+    setFeedbackSubmittedForCurrentItinerary(false); 
 
     try {
-      const result: ItineraryData = await generateItinerary(request);
-      setItinerary(result);
-      savePlanToHistory(result);
+      const resultFromAI: ItineraryData = await generateItinerary(request);
+      const processedItinerary = calculateAndSetItineraryCosts(resultFromAI);
+      setItinerary(processedItinerary);
+      savePlanToHistory(processedItinerary);
     } catch (err) {
       console.error(err);
       if (err instanceof Error) {
@@ -85,11 +129,14 @@ const App: React.FC = () => {
     }
   }, [isGeminiApiKeyMissing, savePlanToHistory]);
 
-  const loadPlanFromHistory = (plan: ItineraryData) => {
-    setItinerary(plan);
+  const loadPlanFromHistory = (planData: ItineraryData) => {
+    // Recalculate costs for older plans that might not have them stored
+    // or if cost calculation logic changes.
+    const processedPlan = calculateAndSetItineraryCosts(planData);
+    setItinerary(processedPlan);
     setError(null);
     setShowHistoryModal(false);
-    setFeedbackSubmittedForCurrentItinerary(false); // Reset feedback status for loaded plan
+    setFeedbackSubmittedForCurrentItinerary(false); 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -98,12 +145,15 @@ const App: React.FC = () => {
     const updatedPlans = currentPlans.filter(plan => plan.id !== planId);
     localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(updatedPlans));
     if (itinerary) {
-        const currentLoadedPlan = currentPlans.find(p => p.id === planId);
-        if (currentLoadedPlan && itinerary.title === currentLoadedPlan.name) {
-             // Check if the itinerary objects are the same instance or deeply equal if necessary.
-             // For simplicity, we assume if titles match, it's the one.
-             // A more robust check might involve comparing more fields or the ID if the itineraryData itself had one.
-             setItinerary(null);
+        const currentLoadedPlanArray = currentPlans.filter(p => p.id === planId);
+         // Check if the currently displayed itinerary is the one being deleted.
+        if (currentLoadedPlanArray.length > 0 && currentLoadedPlanArray[0].itineraryData.title === itinerary.title) {
+             // More robust check: compare unique IDs if itineraryData had one, or deep compare.
+             // For now, if title matches, assume it's the one.
+             // Also check if the raw itinerary data is the same to be more precise.
+             if (JSON.stringify(currentLoadedPlanArray[0].itineraryData) === JSON.stringify(itinerary)){
+                setItinerary(null);
+             }
         }
     }
   };
@@ -134,20 +184,16 @@ const App: React.FC = () => {
     };
 
     console.log("Feedback Received:", fullFeedback);
-    // Store feedback in localStorage (optional, for demonstration)
     try {
       const existingFeedback = localStorage.getItem(FEEDBACK_HISTORY_KEY);
       const feedbackHistory: FeedbackData[] = existingFeedback ? JSON.parse(existingFeedback) : [];
-      feedbackHistory.unshift(fullFeedback); // Add new feedback to the beginning
-      localStorage.setItem(FEEDBACK_HISTORY_KEY, JSON.stringify(feedbackHistory.slice(0, 50))); // Keep last 50 feedbacks
+      feedbackHistory.unshift(fullFeedback); 
+      localStorage.setItem(FEEDBACK_HISTORY_KEY, JSON.stringify(feedbackHistory.slice(0, 50))); 
     } catch (e) {
       console.error("Error saving feedback to localStorage:", e);
     }
     
-    setFeedbackSubmittedForCurrentItinerary(true); // Mark as submitted for the current UI session
-    // The modal itself will handle closing or showing a thank you message.
-    // We might want to close it from here too after a delay, or let FeedbackModal handle its full lifecycle.
-    // For now, FeedbackModal will show its own "thank you" and close button.
+    setFeedbackSubmittedForCurrentItinerary(true); 
   }, [itinerary]);
 
 
@@ -227,7 +273,7 @@ const App: React.FC = () => {
           getStoredPlans={getStoredPlans}
         />
       )}
-      {showFeedbackModal && itinerary && ( // Only show if there's an itinerary to give feedback on
+      {showFeedbackModal && itinerary && ( 
         <FeedbackModal
           isOpen={showFeedbackModal}
           onClose={() => setShowFeedbackModal(false)}

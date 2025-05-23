@@ -4,6 +4,7 @@ import { SectionDetail, ActivityItem } from '../types';
 
 interface SectionProps {
   sectionDetail: SectionDetail;
+  formatCurrency: (value?: number, currencyCode?: string) => string;
 }
 
 const getIconForType = (type: ActivityItem['type']): string => {
@@ -17,7 +18,7 @@ const getIconForType = (type: ActivityItem['type']): string => {
   }
 };
 
-export const Section: React.FC<SectionProps> = ({ sectionDetail }) => {
+export const Section: React.FC<SectionProps> = ({ sectionDetail, formatCurrency }) => {
   const { title, items } = sectionDetail;
 
   if (!items || items.length === 0) {
@@ -34,7 +35,14 @@ export const Section: React.FC<SectionProps> = ({ sectionDetail }) => {
               {item.icon || getIconForType(item.type)}
             </span>
             <div className="flex-1">
-              <p className="text-slate-700 leading-relaxed">{item.description}</p>
+              <div className="flex justify-between items-start">
+                <p className="text-slate-700 leading-relaxed pr-2">{item.description}</p>
+                {item.estimatedCost !== undefined && item.currency && (
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                    ~ {formatCurrency(item.estimatedCost, item.currency)}
+                  </span>
+                )}
+              </div>
               {item.details && <p className="text-xs text-slate-500 mt-1">{item.details}</p>}
             </div>
           </li>

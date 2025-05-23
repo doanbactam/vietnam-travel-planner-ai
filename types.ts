@@ -16,6 +16,8 @@ export interface ActivityItem {
   description: string;
   icon?: string; // Emoji
   details?: string; // Optional further details
+  estimatedCost?: number; // Estimated cost for this activity
+  currency?: string; // Currency for the estimated cost, e.g., "VND"
 }
 
 export interface SectionDetail {
@@ -32,6 +34,9 @@ export interface TrendySuggestion {
 export interface AccommodationSuggestion {
   type: string;
   details: string;
+  minPrice?: number; // Estimated minimum price for accommodation
+  maxPrice?: number; // Estimated maximum price for accommodation
+  priceCurrency?: string; // Currency for the accommodation price, e.g., "VND"
 }
 
 export interface DailyNote {
@@ -83,6 +88,8 @@ export interface DayPlan {
   dailyNotes?: DailyNote[];
   trendySuggestion?: TrendySuggestion;
   accommodationSuggestion?: AccommodationSuggestion;
+  estimatedDailyCost?: number; // Calculated estimated cost for the day
+  dailyCostCurrency?: string; // Currency for the daily cost, e.g., "VND"
 }
 
 export interface GeneralNote {
@@ -109,6 +116,9 @@ export interface ItineraryData {
   };
   mapData?: MapData; // Add mapData here
   feasibilityWarning?: string;
+  estimatedTotalCost?: number; // Calculated total estimated cost for the trip
+  totalCostCurrency?: string; // Currency for the total cost, e.g., "VND"
+  costDisclaimer?: string; // Disclaimer about the estimated costs
 }
 
 // Error structure from API (if needed)
