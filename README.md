@@ -1,7 +1,7 @@
 # Vietnam Travel Planner AI
 
 ![Vietnam Travel Planner AI](https://img.shields.io/badge/Vietnam-Travel_Planner_AI-teal)
-
+  <img alt="Ứng dụng lập kế hoạch du lịch Việt Nam sử dụng AI." src="https://api.pikwy.com/web/683038364dfa723e7231a068.jpg">
 Ứng dụng lập kế hoạch du lịch Việt Nam được hỗ trợ bởi AI. Tạo lịch trình chi tiết, cá nhân hóa cho chuyến đi của bạn tại Việt Nam chỉ với vài thông tin đơn giản.
 
 ## Tính năng
