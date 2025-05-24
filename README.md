@@ -41,7 +41,7 @@ vietnam-travel-planner-ai/
 
 1. Clone dự án:
    ```bash
-   git clone https://github.com/your-username/vietnam-travel-planner-ai.git
+   git clone https://github.com/doanbactam/vietnam-travel-planner-ai.git
    cd vietnam-travel-planner-ai
    ```
 
